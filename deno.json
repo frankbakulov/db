@@ -1,0 +1,26 @@
+{
+	"name": "@frankbakulov/db",
+	"version": "0.3.1",
+	"license": "MIT",
+	"exports": "./mod.js",
+	"tasks": {
+		"p": "deno --allow-all ../../publish.ts && deno publish",
+		"t": "deno --watch --allow-all test.js"
+	},
+	"lint": {
+		"rules": {
+			"exclude": [
+				"no-inner-declarations",
+				"no-var",
+				"prefer-const",
+				"no-explicit-any",
+				"no-import-prefix",
+				"no-case-declarations"
+			]
+		}
+	},
+	"imports": {
+		"@frankbakulov/fssh": "jsr:@frankbakulov/fssh@^0.1.1",
+		"@frankbakulov/utils": "jsr:@frankbakulov/utils@^0.7.4"
+	}
+}
