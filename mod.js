@@ -151,6 +151,8 @@ export default class DB {
 
 		values = values.map(v => v instanceof Set ? Array.from(v) : v);
 
+		values = values.map(v => Array.isArray(v) && !v.length ? null : v);
+
 		// cut ? inside strings
 		var countPl = (sql) => {
 			var a = sql.replace(/(['"])[^'"]*\?[^'"]*(['"])/, '').split('');
@@ -218,7 +220,6 @@ export default class DB {
 					});
 				});
 			}
-
 			return this.doQuery(sql, values);
 		});
 	}
@@ -243,7 +244,6 @@ export default class DB {
 					sqlMessage: error.sqlMessage,
 					sql: error.sql,
 				});
-
 				if (!Array.isArray(results)) {
 					if (sql.startsWith('SELECT')) {
 						return resolve(results);
