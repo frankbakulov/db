@@ -50,10 +50,9 @@ export default class DB {
 	escape(q, quote = false, addPerc = false) {
 		var r = 'NULL';
 		if (q !== null && q !== undefined) {
-			r = q.replace(/\\/g, '\\\\').replace(/%/g, '\\\\%').replace(/"/g, '""');
+			r = q.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/"/g, '""');
 			if (addPerc) {
-				r.endsWith('\\') && (r += '\\');
-				r += '%'
+				r += '\\%';
 			}
 			quote && (r = `"${r}"`);
 		}
@@ -204,6 +203,9 @@ export default class DB {
 			};
 
 		if (sql.startsWith('INSERT') || sql.startsWith('REPLACE')) {
+			if (values[0] === null) {
+				return Promise.resolve(0);
+			}
 			formatInsert();
 		} else if (sql.startsWith('UPDATE')) {
 			formatUpdate();
@@ -237,13 +239,15 @@ export default class DB {
 			this.pool.query(sql, values, (error, results, fields) => {
 				this.isQueryRunning = false;
 				this.doQueryStack();
-				if (error) return reject({
-					code: error.code,
-					coderrno: error.errno,
-					sqlState: error.sqlState,
-					sqlMessage: error.sqlMessage,
-					sql: error.sql,
-				});
+				if (error) {
+					return reject({
+						code: error.code,
+						coderrno: error.errno,
+						sqlState: error.sqlState,
+						sqlMessage: error.sqlMessage,
+						sql: error.sql,
+					});
+				}
 				if (!Array.isArray(results)) {
 					if (sql.startsWith('SELECT')) {
 						return resolve(results);
