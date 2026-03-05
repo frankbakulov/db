@@ -4,6 +4,8 @@ import * as f from '@frankbakulov/utils';
 import fssh from '@frankbakulov/fssh';
 import { EventEmitter } from 'node:events';
 
+var pools = {}; // host:port@db => pool
+
 export default class DB {
 	pool;
 	ssh;
@@ -60,7 +62,12 @@ export default class DB {
 	}
 
 	connect(config) {
-		this.pool = mysql.createPool({
+		var k  = `${config.host}:${config.port}@${config.db}`;
+		if (pools[k]) {
+			return Promise.resolve(this.pool = pools[k]);
+		}
+
+		pools[k] = this.pool = mysql.createPool({
 			host: config.host,
 			port: config.port,
 			stream: config.stream,
