@@ -47,11 +47,18 @@ export default class DB {
 	}
 
 	end() {
-		Object.entries(pools).map(([name, pool]) => {
-			pool.end();
-			delete pools[name];
-		});
-		this.ssh?.end();
+		return Promise.all(
+			Object.entries(pools).map(([name, pool]) =>
+				new Promise((resolve, reject) => {
+					pool.end((error) => {
+						delete pools[name];
+						error ? reject(error) : resolve();
+					});
+				}),
+			),
+		)
+			.then(() => this.ssh?.end())
+			.then(() => new Promise((resolve) => setTimeout(resolve)));
 	}
 
 	static screen(l) {
@@ -311,4 +318,3 @@ export default class DB {
 		});
 	}
 }
-
