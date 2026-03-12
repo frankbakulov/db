@@ -10,8 +10,9 @@ export default class DB {
 	pool;
 	ssh;
 	queryStack = [];
-	creationPromise;
 	ee;
+	config;
+	sshConfig;
 	isQueryRunning = false;
 
 	constructor(config, sshConfig) {
@@ -19,7 +20,8 @@ export default class DB {
 			config = f.readJsonSync(config);
 		}
 
-		this.creationPromise = this.create(config, sshConfig);
+		this.config = config;
+		this.sshConfig = sshConfig;
 	}
 
 	create(config, sshConfig) {
@@ -45,7 +47,10 @@ export default class DB {
 	}
 
 	end() {
-		this.pool.end();
+		Object.entries(pools).map(([name, pool]) => {
+			pool.end();
+			delete pools[name];
+		});
 		this.ssh?.end();
 	}
 
@@ -60,10 +65,9 @@ export default class DB {
 	escape(q, quote = false, addPerc = false) {
 		var r = "NULL";
 		if (q !== null && q !== undefined) {
-			r = q.replace(/\\/g, "\\\\").replace(/%/g, "\\\\%").replace(/"/g, '""');
+			r = q.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/"/g, '""');
 			if (addPerc) {
-				r.endsWith("\\") && (r += "\\");
-				r += "%";
+				r += "\\%";
 			}
 			quote && (r = `"${r}"`);
 		}
@@ -84,20 +88,19 @@ export default class DB {
 			password: config.pass,
 			database: config.db,
 			dateStrings: true,
+			decimalNumbers: true,
 			waitForConnections: true,
 			multipleStatements: true,
 			keepAliveInitialDelay: 10000,
 			enableKeepAlive: true,
-			decimalNumbers: true,
 		});
 
 		return Promise.all((config.initialQueries || []).map((q) => this.q(q)))
 			.then(() => this.pool);
 	}
 
-	#result(data, is_col) {
-		var cols = data.shift(),
-			ci = [],
+	#result(data, is_col, sql) {
+		var cols = data.shift(), ci = [],
 			getRowObject = (r) => {
 				if (is_col) {
 					return r[cols.findIndex((_, i) => !ci.includes(i))];
@@ -116,7 +119,7 @@ export default class DB {
 				}
 			};
 
-		if (!cols) return [];
+		if (!cols) return sql.includes('ARRAY_KEY') ? {} : [];
 
 		cols.forEach((c, i) => {
 			if (c.startsWith("ARRAY_KEY")) {
@@ -139,11 +142,11 @@ export default class DB {
 	}
 
 	select(...args) {
-		return this.query(...args).then((data) => this.#result(data));
+		return this.query(...args).then((data) => this.#result(data, false, args[0]));
 	}
 
 	col(...args) {
-		return this.query(...args).then((data) => this.#result(data, true));
+		return this.query(...args).then((data) => this.#result(data, true, args[0]));
 	}
 
 	cell(...args) {
@@ -192,6 +195,10 @@ export default class DB {
 					firstValue = values[0];
 				}
 
+				if (firstValue.length === 1 && firstValue[0] === null) {
+					return false;
+				}
+
 				if (firstValue) {
 					let odku = Array.isArray(firstValue) ? firstValue : [firstValue];
 					sql += ` AS a80 ON DUPLICATE KEY UPDATE ${
@@ -229,13 +236,18 @@ export default class DB {
 				values.splice(iValues, 1, ...Object.values(upd));
 			};
 
+		var isQuery;
 		if (sql.startsWith("INSERT") || sql.startsWith("REPLACE")) {
-			formatInsert();
+			isQuery = formatInsert();
 		} else if (sql.startsWith("UPDATE")) {
 			formatUpdate();
 		}
 
-		return this.creationPromise.then(() => {
+		if (isQuery === false) {
+			return 0;
+		}
+
+		return this.create(this.config, this.sshConfig).then(() => {
 			if (this.ee && this.isQueryRunning) {
 				return new Promise((resolve, reject) => {
 					var queryId;

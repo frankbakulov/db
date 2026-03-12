@@ -1,11 +1,11 @@
 {
 	"name": "@frankbakulov/db",
-	"version": "0.3.6",
+	"version": "0.3.7",
 	"license": "MIT",
 	"exports": "./mod.js",
 	"tasks": {
-		"p": "deno --allow-all ../../publish.ts && git commit -a -m 'version' && deno publish",
-		"t": "deno --watch --allow-all test.js"
+		"p": "deno update --latest && deno --allow-all ../../publish.ts && git commit -a -m 'version' && git push && deno publish",
+		"t": "deno test --allow-all"
 	},
 	"lint": {
 		"rules": {
@@ -20,7 +20,7 @@
 		}
 	},
 	"imports": {
-		"@frankbakulov/fssh": "jsr:@frankbakulov/fssh@^0.1.1",
-		"@frankbakulov/utils": "jsr:@frankbakulov/utils@^0.7.4"
+		"@frankbakulov/fssh": "jsr:@frankbakulov/fssh@^0.1.11",
+		"@frankbakulov/utils": "jsr:@frankbakulov/utils@^0.8.2"
 	}
 }
