@@ -72,6 +72,7 @@ export default class DB {
 	escape(q, quote = false, addPerc = false) {
 		var r = "NULL";
 		if (q !== null && q !== undefined) {
+			q = String(q);
 			r = q.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/"/g, '""');
 			if (addPerc) {
 				r += "\\%";

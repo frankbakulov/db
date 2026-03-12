@@ -25,6 +25,7 @@ Deno.test("DB.screen - number and object", () => {
 // --- escape() ---
 
 Deno.test("DB.escape - basic escaping", () => {
+	assertEquals(db.escape(1), "1");
 	assertEquals(db.escape("hello"), "hello");
 	assertEquals(db.escape("hel%lo"), "hel\\%lo");
 	assertEquals(db.escape("hel\"lo"), "hel\"\"lo");
