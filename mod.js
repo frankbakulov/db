@@ -203,11 +203,10 @@ export default class DB {
 					firstValue = values[0];
 				}
 
-				if (firstValue.length === 1 && firstValue[0] === null) {
-					return false;
-				}
-
 				if (firstValue) {
+					if (firstValue.length === 1 && firstValue[0] === null) {
+						return false;
+					}
 					let odku = Array.isArray(firstValue) ? firstValue : [firstValue];
 					sql += ` AS a80 ON DUPLICATE KEY UPDATE ${
 						odku.map((c) => `\`${c}\`=a80.${c}`).join()

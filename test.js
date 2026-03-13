@@ -78,6 +78,15 @@ Deno.test("DB.query - INSERT with null values returns 0", async () => {
 	assertEquals(res, 0);
 	await db.end();
 });
+
+Deno.test("DB.query - INSERT object", async () => {
+	const db = dbc();
+	// For INSERT and REPLACE when first value is null, query() returns 0 synchronously
+	const res = await db.query("INSERT INTO label", { c: 'x', value: 777, name: 'lalala' });
+	assertEquals(res, 1);
+	await db.end();
+});
+
 Deno.test("DB.query - UPDATE with object SET expands correctly", async () => {
 	const db = dbc();
 	var upd = { name: "foo", age: 30 }, id = 10;
