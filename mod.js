@@ -16,7 +16,7 @@ export default class DB {
 	isQueryRunning = false;
 
 	constructor(config, sshConfig) {
-		if (typeof config === "string") {
+		if (typeof config === 'string') {
 			config = f.readJsonSync(config);
 		}
 
@@ -34,7 +34,7 @@ export default class DB {
 				...sshConfig,
 				forwardHost: config.host,
 				forwardPort: config.port,
-			}, "forward")
+			}, 'forward')
 				.then((stream) =>
 					this.connect({
 						...config,
@@ -48,34 +48,34 @@ export default class DB {
 
 	end() {
 		return Promise.all(
-			Object.entries(pools).map(([name, pool]) =>
+			Object.values(pools).map((pool) =>
 				new Promise((resolve, reject) => {
 					pool.end((error) => {
-						delete pools[name];
 						error ? reject(error) : resolve();
 					});
 				}),
 			),
-		)
-			.then(() => this.ssh?.end())
-			.then(() => new Promise((resolve) => setTimeout(resolve)));
+		).then(() => {
+			pools = {};
+			return this.ssh?.end();
+		}).then(() => new Promise(setTimeout));
 	}
 
 	static screen(l) {
-		return typeof l === "string"
-			? `'${l.replace(/\\/g, "\\\\").replace(/'/g, "\\'")}'`
+		return typeof l === 'string'
+			? `'${l.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`
 			: (l === null || l === undefined
-				? "NULL"
-				: (typeof l === "object" ? `'${JSON.stringify(l)}'` : l));
+				? 'NULL'
+				: (typeof l === 'object' ? `'${JSON.stringify(l)}'` : l));
 	}
 
 	escape(q, quote = false, addPerc = false) {
-		var r = "NULL";
+		var r = 'NULL';
 		if (q !== null && q !== undefined) {
 			q = String(q);
-			r = q.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/"/g, '""');
+			r = q.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/"/g, '""');
 			if (addPerc) {
-				r += "\\%";
+				r += '\\%';
 			}
 			quote && (r = `"${r}"`);
 		}
@@ -83,7 +83,7 @@ export default class DB {
 	}
 
 	connect(config) {
-		var k  = `${config.host}:${config.port}@${config.db}`;
+		var k = `${config.host}:${config.port}@${config.db}`;
 		if (pools[k]) {
 			return Promise.resolve(this.pool = pools[k]);
 		}
@@ -130,8 +130,8 @@ export default class DB {
 		if (!cols) return sql.includes('ARRAY_KEY') ? {} : [];
 
 		cols.forEach((c, i) => {
-			if (c.startsWith("ARRAY_KEY")) {
-				ci[+c.replace("ARRAY_KEY", "").replace("_", "")] = i;
+			if (c.startsWith('ARRAY_KEY')) {
+				ci[+c.replace('ARRAY_KEY', '').replace('_', '')] = i;
 			}
 		});
 
@@ -184,9 +184,9 @@ export default class DB {
 
 		// cut ? inside strings
 		var countPl = (sql) => {
-				var a = sql.replace(/(['"])[^'"]*\?[^'"]*(['"])/, "").split("");
-				return a.filter((l, i) => l === "?" && a[i + 1] !== "?").length;
-			},
+			var a = sql.replace(/(['"])[^'"]*\?[^'"]*(['"])/g, '').split('');
+			return a.filter((l, i) => l === '?' && a[i + 1] !== '?').length;
+		},
 			qPl = countPl(sql),
 			formatInsert = () => {
 				if (qPl === values.length) return;
@@ -197,9 +197,8 @@ export default class DB {
 				if (f.isObject(firstValue[0])) {
 					ins = firstValue;
 					cols = Object.keys(ins[0]);
-					sql += ` (${cols.map((c) => `\`${c}\``).join()}) VALUES ${
-						ins.map(() => `(${cols.map(() => "?").join()})`).join()
-					}`;
+					sql += ` (${cols.map((c) => `\`${c}\``).join()}) VALUES ${ins.map(() => `(${cols.map(() => '?').join()})`).join()
+						}`;
 					firstValue = values[0];
 				}
 
@@ -208,9 +207,8 @@ export default class DB {
 						return false;
 					}
 					let odku = Array.isArray(firstValue) ? firstValue : [firstValue];
-					sql += ` AS a80 ON DUPLICATE KEY UPDATE ${
-						odku.map((c) => `\`${c}\`=a80.${c}`).join()
-					}`;
+					sql += ` AS a80 ON DUPLICATE KEY UPDATE ${odku.map((c) => `\`${c}\`=a80.${c}`).join()
+						}`;
 				}
 
 				values = ins.reduce((p, c) => {
@@ -219,8 +217,7 @@ export default class DB {
 				}, []);
 			},
 			formatUpdate = () => {
-				// localizar SET ?, indexOf this placeholder
-				var iSet = sql.indexOf("SET ?");
+				var iSet = sql.indexOf('SET ?');
 				if (iSet === -1) return; // not for object
 
 				var iValues = countPl(sql.slice(0, iSet)),
@@ -234,21 +231,41 @@ export default class DB {
 
 				// replace this ? in sql to col = ?,
 
-				// 4 - "SET ", 5 - "SET ?"
+				// 4 - 'SET ', 5 - 'SET ?'
 				sql = sql.slice(0, iSet + 4) + Object.keys(upd).map((c) =>
 					`\`${c}\`=?`
 				).join() + sql.slice(iSet + 5);
 
 				// splice this index in values to val
 				values.splice(iValues, 1, ...Object.values(upd));
+			},
+			formatPlaceholders = () => {
+				var pholders = [...sql.replace(/(['"][^'"]*)(\?)([^'"]*['"])/g, '$1_$3').matchAll(/\?\w+/g)];
+
+				for (let i = pholders.length - 1; i >= 0; i--) {
+					let ph = pholders[i][0],
+						index = pholders[i].index,
+						type = ph.slice(1);
+
+					switch (type) {
+						case 'day':
+						case 'month':
+							sql = sql.slice(0, index) + ('BETWEEN ? AND ? + INTERVAL 1 ' + type) + sql.slice(index + ph.length);
+							let newValue = type === 'day' ? values[i] : values[i].slice(0, 8) + '01';
+							values.splice(i, 1, newValue, newValue);
+							break;
+					}
+				}
 			};
 
 		var isQuery;
-		if (sql.startsWith("INSERT") || sql.startsWith("REPLACE")) {
+		if (sql.startsWith('INSERT') || sql.startsWith('REPLACE')) {
 			isQuery = formatInsert();
-		} else if (sql.startsWith("UPDATE")) {
+		} else if (sql.startsWith('UPDATE')) {
 			formatUpdate();
 		}
+
+		formatPlaceholders();
 
 		if (isQuery === false) {
 			return 0;
@@ -292,15 +309,15 @@ export default class DB {
 					});
 				}
 				if (!Array.isArray(results)) {
-					if (sql.startsWith("SELECT")) {
+					if (sql.startsWith('SELECT')) {
 						return resolve(results);
 					}
 
-					if (sql.startsWith("INSERT") && results.insertId) {
+					if (sql.startsWith('INSERT') && results.insertId) {
 						return resolve(results.insertId);
 					}
 
-					if (sql.startsWith("UPDATE")) {
+					if (sql.startsWith('UPDATE')) {
 						return resolve(results.changedRows);
 					}
 

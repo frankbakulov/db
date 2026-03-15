@@ -48,7 +48,7 @@ Deno.test("DB.escape - null and undefined", () => {
 
 Deno.test("DB.query - simple SELECT passes through args", async () => {
 	const db = dbc();
-	const res = await db.query("  SELECT * FROM t WHERE id = ?  ", 123);
+	const res = await db.query("  SELECT id, name, age, flag FROM t WHERE id = ?  ", 123);
 	assertEquals(res, [
 		[
 			"id",
@@ -63,7 +63,7 @@ Deno.test("DB.query - simple SELECT passes through args", async () => {
 
 Deno.test("DB.query - Set and empty array values", async () => {
 	const db = dbc();
-	var capturedValues = await db.select("SELECT * FROM t WHERE id IN (?)", new Set([1, 2]));
+	var capturedValues = await db.select("SELECT id,name,age,flag FROM t WHERE id IN (?)", new Set([1, 2]));
 	assertEquals(capturedValues, [
 		{ id: 1, name: 'name1', age: null, flag: null },
 		{ id: 2, name: 'name2', age: null, flag: null },
@@ -82,6 +82,7 @@ Deno.test("DB.query - INSERT with null values returns 0", async () => {
 Deno.test("DB.query - INSERT object", async () => {
 	const db = dbc();
 	// For INSERT and REPLACE when first value is null, query() returns 0 synchronously
+	await db.query("DELETE FROM label WHERE c = ? AND name = ?", 'x', 'lalala');
 	const res = await db.query("INSERT INTO label", { c: 'x', value: 777, name: 'lalala' });
 	assertEquals(res, 1);
 	await db.end();
@@ -137,5 +138,21 @@ Deno.test("DB.select with ARRAY_KEY produces nested object", async () => {
 		"10": { name: "foo" },
 		"123": { name: "ok" },
 	});
+	await db.end();
+});
+
+Deno.test("DB select DAY", async () => {
+	const db = dbc();
+	var d = '2026-03-15';
+	const res = await db.col("SELECT DATE(dt) FROM t WHERE dt ?day AND id > ?", d, 0);
+	assertEquals(res.filter(v => v === d).length, res.length);
+	await db.end();
+});
+
+Deno.test("MONTH", async () => {
+	const db = dbc();
+	var d = '2026-03-15';
+	const res = await db.col("SELECT DATE(dt) FROM t WHERE dt ?month", d);
+	assertEquals(res.filter(v => v.slice(0,8) === d.slice(0,8)).length, res.length);
 	await db.end();
 });
