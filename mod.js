@@ -119,11 +119,16 @@ export default class DB {
 				return row;
 			},
 			setResult = (cIndex, row, pointer) => {
+				var k = row[ci[cIndex]];
 				if (cIndex === ci.length - 1) {
-					pointer[row[ci[cIndex]]] = getRowObject(row);
+					if (Array.isArray(pointer)) {
+						pointer.push(getRowObject(row));
+					} else {
+						pointer[k] = getRowObject(row);
+					}
 				} else {
-					pointer[row[ci[cIndex]]] ||= {};
-					setResult(cIndex + 1, row, pointer[row[ci[cIndex]]]);
+					pointer[k] ||= row[ci[cIndex + 1]] === null ? [] : {};
+					setResult(cIndex + 1, row, pointer[k]);
 				}
 			};
 
@@ -306,6 +311,7 @@ export default class DB {
 						sqlState: error.sqlState,
 						sqlMessage: error.sqlMessage,
 						sql: error.sql,
+						message: error.message,
 					});
 				}
 				if (!Array.isArray(results)) {
