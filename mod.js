@@ -300,9 +300,12 @@ export default class DB {
 
 	doQuery(sql, values) {
 		this.isQueryRunning = true;
+		var queryLabel = f.randomString();
+		f.mt(queryLabel);
 		return new Promise((resolve, reject) => {
 			this.pool.query(sql, values, (error, results, fields) => {
 				this.isQueryRunning = false;
+				this.config.notifySlowQuery?.(f.mt(queryLabel, undefined, true), sql);
 				this.doQueryStack();
 				if (error) {
 					return reject({

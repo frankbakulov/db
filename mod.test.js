@@ -4,8 +4,30 @@ import DB from "./mod.js";
 var dbc = () => new DB({ host: "localhost", user: "root", pass: "mysql", db: "mock" });
 const db = dbc();
 
+var dbklad = () => new DB({ host: "localhost", user: "root", pass: "mysql", db: "klad" });
+
 // --- static screen() ---
-// /* 
+Deno.test("DB ORDER BY", async () => {
+	const db = dbklad();
+	const res = await db.select(`SELECT Visit.id AS ARRAY_KEY, Visit.id, c.f, c.i, c.o, c.sex,
+                        Visit.comment, Visit.comment_mex, Visit.comment_master, Visit.comment_hidden,
+                        Visit.dt_visit, Visit.dt_visit_to, Visit. q_Work,
+                        cr.title AS car, Visit.id_Client, Visit.status, Visit.statusPart,
+                        Visit.dt_remind, Visit.id_User_remind, Visit.id_User, Visit.dt, Visit.isDeleted, Visit.is_lk
+                FROM Visit
+                LEFT JOIN ClientCar AS cr ON cr.id = Visit.id_ClientCar
+                LEFT JOIN Client AS c ON c.id = Visit.id_Client  WHERE (Visit.dt_visit BETWEEN "2024-04-09" AND "2024-04-09" + INTERVAL 1 DAY
+OR Visit.dt_visit_to BETWEEN "2024-04-09" AND "2024-04-09" + INTERVAL 1 DAY
+OR "2024-04-09" BETWEEN Visit.dt_visit AND Visit.dt_visit_to)
+                ORDER BY Visit.dt_visit DESC`);
+	assertEquals(Object.keys(res), [
+		[
+			58813, 58653, 58652, 58644, 58632, 58604, 58865, 58517, 58872, 58660, 58655, 58868, 58606, 58624, 58635, 58853,
+		],
+	]);
+	await db.end();
+});
+/* 
 Deno.test("DB.screen - string escaping", () => {
 	assertEquals(DB.screen("hello"), "'hello'");
 	assertEquals(DB.screen("hel'lo"), "'hel\\'lo'");
@@ -169,4 +191,4 @@ Deno.test("MONTH", async () => {
 	assertEquals(res.filter(v => v.slice(0, 8) === d.slice(0, 8)).length, res.length);
 	await db.end();
 });
-// */;
+*/
