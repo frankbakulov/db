@@ -245,7 +245,7 @@ export default class DB {
 				values.splice(iValues, 1, ...Object.values(upd));
 			},
 			formatPlaceholders = () => {
-				var pholders = [...sql.replace(/(['"][^'"]*)(\?)([^'"]*['"])/g, '$1_$3').matchAll(/\?\w+/g)];
+				var pholders = [...sql.replace(/(['"][^'"]*)(\?)([^'"]*['"])/g, '$1_$3').matchAll(/\?[\?\w]+/g)];
 
 				for (let i = pholders.length - 1; i >= 0; i--) {
 					let ph = pholders[i][0],
@@ -318,7 +318,7 @@ export default class DB {
 					});
 				}
 				if (!Array.isArray(results)) {
-					if (sql.startsWith('SELECT')) {
+					if (sql.startsWith('SELECT')) {3
 						return resolve(results);
 					}
 

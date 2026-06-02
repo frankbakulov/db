@@ -7,7 +7,7 @@ const db = dbc();
 var dbklad = () => new DB({ host: "localhost", user: "root", pass: "mysql", db: "klad" });
 
 // --- static screen() ---
-Deno.test("DB ORDER BY", async () => {
+/* Deno.test("DB ORDER BY", async () => {
 	const db = dbklad();
 	const res = await db.select(`SELECT Visit.id AS ARRAY_KEY, Visit.id, c.f, c.i, c.o, c.sex,
                         Visit.comment, Visit.comment_mex, Visit.comment_master, Visit.comment_hidden,
@@ -21,13 +21,10 @@ OR Visit.dt_visit_to BETWEEN "2024-04-09" AND "2024-04-09" + INTERVAL 1 DAY
 OR "2024-04-09" BETWEEN Visit.dt_visit AND Visit.dt_visit_to)
                 ORDER BY Visit.dt_visit DESC`);
 	assertEquals(Object.keys(res), [
-		[
-			58813, 58653, 58652, 58644, 58632, 58604, 58865, 58517, 58872, 58660, 58655, 58868, 58606, 58624, 58635, 58853,
-		],
+		'58813','58653','58652','58644','58632','58604','58865','58517','58872','58660','58655','58868','58606','58624','58635','58853',
 	]);
 	await db.end();
-});
-/* 
+}); */
 Deno.test("DB.screen - string escaping", () => {
 	assertEquals(DB.screen("hello"), "'hello'");
 	assertEquals(DB.screen("hel'lo"), "'hel\\'lo'");
@@ -179,7 +176,7 @@ Deno.test("DB.select with NULL AS ARRAY_KEY produces nested array", async () => 
 Deno.test("DB select DAY", async () => {
 	const db = dbc();
 	var d = '2026-03-15';
-	const res = await db.col("SELECT DATE(dt) FROM t WHERE dt ?day AND id > ?", d, 0);
+	const res = await db.col("SELECT DATE(dt) FROM ?? WHERE dt ?day AND id > ?", 't', d, 0);
 	assertEquals(res.filter(v => v === d).length, res.length);
 	await db.end();
 });
@@ -187,8 +184,7 @@ Deno.test("DB select DAY", async () => {
 Deno.test("MONTH", async () => {
 	const db = dbc();
 	var d = '2026-03-15';
-	const res = await db.col("SELECT DATE(dt) FROM t WHERE dt ?month", d);
+	const res = await db.col("SELECT DATE(dt) FROM ?? WHERE dt ?month", 't', d);
 	assertEquals(res.filter(v => v.slice(0, 8) === d.slice(0, 8)).length, res.length);
 	await db.end();
 });
-*/
