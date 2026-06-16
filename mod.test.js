@@ -1,7 +1,7 @@
 import { assertEquals, assertRejects } from "https://deno.land/std@0.208.0/assert/mod.ts";
 import DB from "./mod.js";
 
-var dbc = () => new DB({ host: "0.0.0.0", user: "root", pass: "mysql", db: "mock" });
+var dbc = () => new DB({ host: "localhost", user: "root", pass: "mysql", db: "mock" });
 const db = dbc();
 
 var dbklad = () => new DB({ host: "localhost", user: "root", pass: "mysql", db: "klad" });
@@ -82,7 +82,7 @@ Deno.test("DB.query - simple SELECT passes through args", async () => {
 
 Deno.test("DB.query - Set and empty array values", async () => {
 	const db = dbc();
-	var capturedValues = await db.select("SELECT id,name,age,flag FROM t WHERE id IN (?)", new Set([1, 2]));
+	var capturedValues = await db.select("SELECT id,name,age,flag FROM t WHERE id IN (?) AND dt ?month", new Set([1, 2]), '2026-03-01');
 	assertEquals(capturedValues, [
 		{ id: 1, name: 'name1', age: null, flag: null },
 		{ id: 2, name: 'name2', age: null, flag: null },
