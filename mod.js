@@ -14,6 +14,9 @@ export default class DB {
 	config;
 	sshConfig;
 	isQueryRunning = false;
+	
+	queryText = '';
+	is_debug = false;
 
 	constructor(config, sshConfig) {
 		if (typeof config === 'string') {
@@ -245,8 +248,7 @@ export default class DB {
 				values.splice(iValues, 1, ...Object.values(upd));
 			},
 			formatPlaceholders = () => {
-				var pholders = [...sql.replace(/(['"][^'"]*)(\?)([^'"]*['"])/g, '$1_$3').matchAll(/\?[\?\w]+/g)];
-
+				var pholders = [...sql.replace(/(['"][^'"]*)(\?)([^'"]*['"])/g, '$1_$3').matchAll(/\?[\?\w]*/g)];
 				for (let i = pholders.length - 1; i >= 0; i--) {
 					let ph = pholders[i][0],
 						index = pholders[i].index,
@@ -303,7 +305,9 @@ export default class DB {
 		var queryLabel = f.randomString();
 		f.mt(queryLabel);
 		return new Promise((resolve, reject) => {
-			this.pool.query(sql, values, (error, results, fields) => {
+			this.queryText = this.pool.format(sql, values);
+			this.is_debug && console.log(this.queryText);
+			this.pool.query(sql, values, (error, results, _fields) => {
 				this.isQueryRunning = false;
 				this.config.notifySlowQuery?.(f.mt(queryLabel, undefined, true), sql);
 				this.doQueryStack();
@@ -318,7 +322,7 @@ export default class DB {
 					});
 				}
 				if (!Array.isArray(results)) {
-					if (sql.startsWith('SELECT')) {3
+					if (sql.startsWith('SELECT')) {
 						return resolve(results);
 					}
 

@@ -1,7 +1,7 @@
 import { assertEquals, assertRejects } from "https://deno.land/std@0.208.0/assert/mod.ts";
 import DB from "./mod.js";
 
-var dbc = () => new DB({ host: "localhost", user: "root", pass: "mysql", db: "mock" });
+var dbc = () => new DB({ host: "0.0.0.0", user: "root", pass: "mysql", db: "mock" });
 const db = dbc();
 
 var dbklad = () => new DB({ host: "localhost", user: "root", pass: "mysql", db: "klad" });
