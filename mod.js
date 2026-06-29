@@ -14,7 +14,7 @@ export default class DB {
 	config;
 	sshConfig;
 	isQueryRunning = false;
-	
+
 	queryText = '';
 	is_debug = false;
 
@@ -29,7 +29,7 @@ export default class DB {
 
 	create(config, sshConfig) {
 		config.port ||= 3306;
-		if (sshConfig) {
+		if (sshConfig && !this.ssh) {
 			// mysql via ssh tunnel will crash with ER_NET_PACKETS_OUT_OF_ORDER, parallel queries are not supported
 			this.ee = new EventEmitter();
 			this.ssh = new fssh();
@@ -86,7 +86,7 @@ export default class DB {
 	}
 
 	connect(config) {
-		var k = `${config.host}:${config.port}@${config.db}`;
+		var k = config.name || `${config.host}:${config.port}@${config.db}`;
 		if (pools[k]) {
 			return Promise.resolve(this.pool = pools[k]);
 		}
@@ -275,7 +275,7 @@ export default class DB {
 		formatPlaceholders();
 
 		if (isQuery === false) {
-			return 0;
+			return Promise.resolve(0);
 		}
 
 		return this.create(this.config, this.sshConfig).then(() => {
