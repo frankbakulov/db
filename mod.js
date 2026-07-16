@@ -1,5 +1,5 @@
 /* @ts-self-types="./mod.d.ts" */
-import mysql from 'npm:mysql2/promise';
+import mysql from 'npm:mysql2/promise@latest';
 import * as f from '@frankbakulov/utils';
 import fssh from '@frankbakulov/fssh';
 import { EventEmitter } from 'node:events';
