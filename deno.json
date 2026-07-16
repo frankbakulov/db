@@ -1,6 +1,6 @@
 {
 	"name": "@frankbakulov/db",
-	"version": "0.5.4",
+	"version": "0.6.1",
 	"license": "MIT",
 	"exports": "./mod.js",
 	"tasks": {
@@ -21,6 +21,6 @@
 	},
 	"imports": {
 		"@frankbakulov/fssh": "jsr:@frankbakulov/fssh@^0.1.11",
-		"@frankbakulov/utils": "jsr:@frankbakulov/utils@^0.8.9"
+		"@frankbakulov/utils": "jsr:@frankbakulov/utils@^0.8.11"
 	}
 }

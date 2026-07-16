@@ -1,5 +1,5 @@
 /* @ts-self-types="./mod.d.ts" */
-import mysql from 'npm:mysql2@latest';
+import mysql from 'npm:mysql2/promise';
 import * as f from '@frankbakulov/utils';
 import fssh from '@frankbakulov/fssh';
 import { EventEmitter } from 'node:events';
@@ -8,8 +8,10 @@ var pools = {}; // host:port@db => pool
 
 export default class DB {
 	pool;
+	conn = { release: () => { } };
 	ssh;
 	queryStack = [];
+	transactions = {}; // id: connection
 	ee;
 	config;
 	sshConfig;
@@ -86,9 +88,13 @@ export default class DB {
 	}
 
 	connect(config) {
+		if (this.conn.connection) {
+			return Promise.resolve(this.conn);
+		}
+
 		var k = config.name || `${config.host}:${config.port}@${config.db}`;
 		if (pools[k]) {
-			return Promise.resolve(this.pool = pools[k]);
+			return (this.pool = pools[k]).getConnection().then(conn => this.conn = conn);
 		}
 
 		pools[k] = this.pool = mysql.createPool({
@@ -107,7 +113,7 @@ export default class DB {
 		});
 
 		return Promise.all((config.initialQueries || []).map((q) => this.q(q)))
-			.then(() => this.pool);
+			.then(() => this.pool.getConnection().then(conn => this.conn = conn));
 	}
 
 	#result(data, is_col, sql) {
@@ -182,7 +188,7 @@ export default class DB {
 		});
 	}
 
-	query(...args) {
+	prepareQuery(...args) {
 		var [sql, ...values] = args;
 		sql = sql.trim();
 
@@ -265,18 +271,23 @@ export default class DB {
 				}
 			};
 
-		var isQuery;
 		if (sql.startsWith('INSERT') || sql.startsWith('REPLACE')) {
-			isQuery = formatInsert();
+			if (false === formatInsert()) {
+				return { sql: '' };
+			}
 		} else if (sql.startsWith('UPDATE')) {
 			formatUpdate();
 		}
 
 		formatPlaceholders();
 
-		if (isQuery === false) {
-			return Promise.resolve(0);
-		}
+		return { sql, values };
+	}
+
+	query(...args) {
+		var { sql, values } = this.prepareQuery(...args);
+
+		if (!sql) return Promise.resolve(0);
 
 		return this.create(this.config, this.sshConfig).then(() => {
 			if (this.ee && this.isQueryRunning) {
@@ -300,51 +311,86 @@ export default class DB {
 		this.ee.emit(this.queryStack.shift());
 	}
 
+	/**
+	 * creates a connection to use in a transaction and returns its id. Use this id in commit() or rollback() to finish the transaction.
+	 * @returns {Promise<string>} transactionId
+	 */
+	transaction() {
+		return this.create(this.config, this.sshConfig)
+			.then(() => this.pool.getConnection())
+			.then((conn) => conn.beginTransaction().then(() => {
+				var transactionId;
+				while (this.transactions[transactionId = String(Math.random())]);
+				this.transactions[transactionId] = conn;
+				return transactionId;
+			}));
+	}
+
+	commit(transactionId) {
+		this.is_debug && console('commit', transactionId);
+		const conn = this.transactions[transactionId];
+		if (!conn) return Promise.resolve();
+		return conn.commit().then(() => {
+			conn.release();
+			delete this.transactions[transactionId];
+		});
+	}
+
+	rollback(transactionId) {
+		this.is_debug && console.log('rollback', transactionId);
+		const conn = this.transactions[transactionId];
+		if (!conn) return Promise.resolve();
+		return conn.rollback().then(() => {
+			conn.release();
+			delete this.transactions[transactionId];
+		});
+	}
+
 	doQuery(sql, values) {
 		this.isQueryRunning = true;
 		var queryLabel = f.randomString();
 		f.mt(queryLabel);
-		return new Promise((resolve, reject) => {
-			this.queryText = this.pool.format(sql, values);
-			this.is_debug && console.log(this.queryText);
-			this.pool.query(sql, values, (error, results, _fields) => {
-				this.isQueryRunning = false;
-				this.config.notifySlowQuery?.(f.mt(queryLabel, undefined, true), sql);
-				this.doQueryStack();
-				if (error) {
-					return reject({
-						code: error.code,
-						coderrno: error.errno,
-						sqlState: error.sqlState,
-						sqlMessage: error.sqlMessage,
-						sql: error.sql,
-						message: error.message,
-					});
-				}
-				if (!Array.isArray(results)) {
-					if (sql.startsWith('SELECT')) {
-						return resolve(results);
-					}
+		this.queryText = this.pool.format(sql, values);
+		this.is_debug && console.log(this.queryText);
+		return this.conn.query(sql, values).then((R) => {
+			var [results, _fields] = R;
+			this.isQueryRunning = false;
+			this.config.notifySlowQuery?.(f.mt(queryLabel, undefined, true), sql);
+			this.doQueryStack();
 
-					if (sql.startsWith('INSERT') && results.insertId) {
-						return resolve(results.insertId);
-					}
-
-					if (sql.startsWith('UPDATE')) {
-						return resolve(results.changedRows);
-					}
-
-					return resolve(results.affectedRows);
+			// if (error) {
+			// 	return reject({
+			// 		code: error.code,
+			// 		coderrno: error.errno,
+			// 		sqlState: error.sqlState,
+			// 		sqlMessage: error.sqlMessage,
+			// 		sql: error.sql,
+			// 		message: error.message,
+			// 	});
+			// }
+			if (!Array.isArray(results)) {
+				if (sql.startsWith('SELECT')) {
+					return results;
 				}
 
-				if (!results[0]) {
-					return resolve(results);
+				if (sql.startsWith('INSERT') && results.insertId) {
+					return results.insertId;
 				}
 
-				let data = [Object.keys(results[0])]
-					.concat(results.map((d) => Object.values(d)));
-				resolve(data);
-			});
+				if (sql.startsWith('UPDATE')) {
+					return results.changedRows;
+				}
+
+				return results.affectedRows;
+			}
+
+			if (!results[0]) {
+				return results;
+			}
+
+			let data = [Object.keys(results[0])]
+				.concat(results.map((d) => Object.values(d)));
+			return data;
 		});
 	}
 }

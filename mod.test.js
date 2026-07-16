@@ -23,8 +23,10 @@ OR "2024-04-09" BETWEEN Visit.dt_visit AND Visit.dt_visit_to)
 	assertEquals(Object.keys(res), [
 		'58813','58653','58652','58644','58632','58604','58865','58517','58872','58660','58655','58868','58606','58624','58635','58853',
 	]);
-	await db.end();
+	await db.conn.release();
 }); */
+
+
 Deno.test("DB.screen - string escaping", () => {
 	assertEquals(DB.screen("hello"), "'hello'");
 	assertEquals(DB.screen("hel'lo"), "'hel\\'lo'");
@@ -77,7 +79,7 @@ Deno.test("DB.query - simple SELECT passes through args", async () => {
 		],
 		[123, 'ok', null, null],
 	]);
-	await db.end();
+	await db.conn.release();
 });
 
 Deno.test("DB.query - Set and empty array values", async () => {
@@ -87,7 +89,7 @@ Deno.test("DB.query - Set and empty array values", async () => {
 		{ id: 1, name: 'name1', age: null, flag: null },
 		{ id: 2, name: 'name2', age: null, flag: null },
 	]);
-	await db.end();
+	await db.conn.release();
 });
 
 Deno.test("DB.query - INSERT with null values returns 0", async () => {
@@ -95,7 +97,7 @@ Deno.test("DB.query - INSERT with null values returns 0", async () => {
 	// For INSERT and REPLACE when first value is null, query() returns 0 synchronously
 	const res = await db.query("INSERT INTO t", null);
 	assertEquals(res, 0);
-	await db.end();
+	await db.conn.release();
 });
 
 Deno.test("DB.query - INSERT object", async () => {
@@ -104,7 +106,7 @@ Deno.test("DB.query - INSERT object", async () => {
 	await db.query("DELETE FROM label WHERE c = ? AND name = ?", 'x', 'lalala');
 	const res = await db.query("INSERT INTO label", { c: 'x', value: 777, name: 'lalala' });
 	assertEquals(res, 1);
-	await db.end();
+	await db.conn.release();
 });
 
 Deno.test("DB.query - UPDATE with object SET expands correctly", async () => {
@@ -116,14 +118,14 @@ Deno.test("DB.query - UPDATE with object SET expands correctly", async () => {
 
 	assertEquals(q_upd, 1);
 	assertEquals(capturedValues, upd);
-	await db.end();
+	await db.conn.release();
 });
 
 Deno.test("DB.q is an alias for query", async () => {
 	const db = dbc();
 	const res = await db.q("SELECT 1");
 	assertEquals(res, [['1'], [1]]);
-	await db.end();
+	await db.conn.release();
 });
 
 // --- #result via select/col/cell/row ---
@@ -131,21 +133,21 @@ Deno.test("DB.col returns column values array", async () => {
 	const db = dbc();
 	const res = await db.col("SELECT id FROM t ORDER BY 1");
 	assertEquals(res, [1, 2, 10, 123]);
-	await db.end();
+	await db.conn.release();
 });
 
 Deno.test("DB.cell returns first cell or null", async () => {
 	const db = dbc();
 	assertEquals(await db.cell("SELECT name FROM t WHERE id=1"), 'name1');
 	assertEquals(await db.cell("SELECT name FROM t WHERE id=999"), null);
-	await db.end();
+	await db.conn.release();
 });
 
 Deno.test("DB.row maps first row to object", async () => {
 	const db = dbc();
 	const res = await db.row("SELECT id, name FROM t LIMIT 1");
 	assertEquals(res, { id: 1, name: "name1" });
-	await db.end();
+	await db.conn.release();
 });
 
 Deno.test("DB.select with ARRAY_KEY produces nested object", async () => {
@@ -157,7 +159,7 @@ Deno.test("DB.select with ARRAY_KEY produces nested object", async () => {
 		"10": { name: "foo" },
 		"123": { name: "ok" },
 	});
-	await db.end();
+	await db.conn.release();
 });
 
 Deno.test("DB.select with NULL AS ARRAY_KEY produces nested array", async () => {
@@ -170,7 +172,7 @@ Deno.test("DB.select with NULL AS ARRAY_KEY produces nested array", async () => 
 			{ c: "a2" },
 		],
 	});
-	await db.end();
+	await db.conn.release();
 });
 
 Deno.test("DB select DAY", async () => {
@@ -178,7 +180,7 @@ Deno.test("DB select DAY", async () => {
 	var d = '2026-03-15';
 	const res = await db.col("SELECT DATE(dt) FROM ?? WHERE dt ?day AND id > ?", 't', d, 0);
 	assertEquals(res.filter(v => v === d).length, res.length);
-	await db.end();
+	await db.conn.release();
 });
 
 Deno.test("MONTH", async () => {
@@ -186,5 +188,56 @@ Deno.test("MONTH", async () => {
 	var d = '2026-03-15';
 	const res = await db.col("SELECT DATE(dt) FROM ?? WHERE dt ?month", 't', d);
 	assertEquals(res.filter(v => v.slice(0, 8) === d.slice(0, 8)).length, res.length);
-	await db.end();
+	await db.conn.release();
 });
+
+Deno.test("DB.transaction - parallel update and insert rollback cleanly", async () => {
+    const db = dbc();
+
+    const original = await db.row("SELECT id, name, age, flag FROM t WHERE id = ?", 1);
+    const tempId = Number(String(Date.now()).slice(-6));
+
+    const txUpdate = await db.transaction();
+    const txInsert = await db.transaction();
+
+    try {
+        const updateConn = db.transactions[txUpdate];
+        const insertConn = db.transactions[txInsert];
+
+        const updatedName = `${original.name}_tx`;
+
+        await Promise.all([
+            updateConn.query("UPDATE t SET name = ? WHERE id = ?", [updatedName, 1]),
+            insertConn.query("INSERT INTO t (id, name, age, flag) VALUES (?, ?, ?, ?)", [
+                tempId,
+                "tx_inserted",
+                33,
+                1,
+            ]),
+        ]);
+
+        const [updatedRows] = await updateConn.query("SELECT name FROM t WHERE id = ?", [1]);
+        assertEquals(updatedRows[0].name, updatedName);
+
+        const [insertRows] = await insertConn.query(
+            "SELECT id, name, age, flag FROM t WHERE id = ?",
+            [tempId],
+        );
+        assertEquals(insertRows[0], {
+            id: tempId,
+            name: "tx_inserted",
+            age: 33,
+            flag: 1,
+        });
+    } finally {
+        await Promise.allSettled([
+            db.rollback(txUpdate),
+            db.rollback(txInsert),
+        ]);
+
+        assertEquals(await db.row("SELECT id, name, age, flag FROM t WHERE id = ?", 1), original);
+        assertEquals(await db.row("SELECT id, name, age, flag FROM t WHERE id = ?", tempId), {});
+    }
+});
+
+
