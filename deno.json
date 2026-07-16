@@ -1,6 +1,6 @@
 {
 	"name": "@frankbakulov/db",
-	"version": "0.6.2",
+	"version": "0.6.3",
 	"license": "MIT",
 	"exports": "./mod.js",
 	"tasks": {
